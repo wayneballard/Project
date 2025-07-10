@@ -62,7 +62,7 @@
             $json_encoded = NULL;
         }
         else{
-            file_put_contents($file, $json_encoded, FILE_APPEND);
+            file_put_contents($file, $json_encoded, FILE_PREPEND);
         }
     }
     else{
@@ -138,14 +138,31 @@
             var_dump($data);
         }    
     }
+    
+    function limit_file($contents){
+        $count = 0;
+        $arr = array();
+        for($i = 0; $i < strlen($contents); $i++){
+                if($contents[$i] == '}'){
+                    $count = $count + 1;
+                }
+                $arr[$count] = $i;
+            }
+        echo "Limited output of the file up to 10 JSOn data structures<br>";
+        for($j = 0; $j < $arr[10]; $j++){
+                echo $contents[$j];
+            }
+            print_r($arr);
+        }
+    
 
  
     $selected_sensor = $_GET["selected_sensor"];
     #$sensor1 = new Sensors($selected_sensor); 
     #$sensor1 ->choose_sensor();
     $sensor1_json = new JSON($selected_sensor);
-    $sensor1_json ->encode_to_json();
-
+    $sensor1_json -> encode_to_json();
+    limit_file($contents);
     ?>
 </body>
 </html>
