@@ -2,8 +2,10 @@ from sense_hat import SenseHat
 import argparse 
 import json
 import math
+import time
 
 sense = SenseHat();
+time.sleep(0.5)
 parser = argparse.ArgumentParser(prog='SenseHAT parser', description='Parses CMD arguments')
 
 parser.add_argument('-r', '--red', action='store', type=int, help='Set the red color of RGB matrix')
@@ -17,11 +19,11 @@ parser.add_argument('-y', '--y', action='store',
 parser.add_argument('-roll', '--roll_angle', action='store_true', help='Get the roll angle of IMU')
 parser.add_argument('-pitch', '--pitch_angle', action='store_true', help='Get the pitch angle of IMU')
 parser.add_argument('-yaw', '--yaw_angle', action='store_true', help='Get the yaw angle pf IMU')
-parser.add_argument('-u', '--units', action='store', type=str, help='Change the unit of orientation')
+parser.add_argument('-u', '--units', choices=["degrees", "radians", None], nargs='?', action='store', type=str, default=None, help='Change the unit of orientation')
 
-parser.add_argument('-P', '--pressure_units', action='store', type=str, help='Change the pressure sensor units')
-parser.add_argument('-T', '--temperature_units', action='store', type=str, help='Change the temperature sensor units')
-parser.add_argument('-H', '--humidity_units', action='store', type=str, help='Change the humidity sensor units')
+parser.add_argument('-P', '--pressure_units', choices=["hPa", "mmHg", None], nargs='?', action='store', type=str, help='Change the pressure sensor units')
+parser.add_argument('-T', '--temperature_units', choices=["C", "F", None], nargs='?', action='store', type=str, help='Change the temperature sensor units')
+parser.add_argument('-H', '--humidity_units', choices=['%', 'decimal', None], nargs='?', action='store', type=str, help='Change the humidity sensor units')
 args = parser.parse_args();
 
 
@@ -137,6 +139,7 @@ class IMU(SenseHat):
             
         print("IMU Orientation:\n") 
         if(self.units == 'degrees'):
+            self.units = "\u00B0"
             if(self.roll is True):
                 print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
@@ -150,12 +153,19 @@ class IMU(SenseHat):
                 print(f"Pitch:{math.radians(self.pitch_orient):.4f}\n");
             if(self.yaw is True):
                 print(f"Yaw:{math.radians(self.yaw_orient):.4f}\n");
+        else:
+            self.units = "\u00B0"
+            if(self.roll is True):
+                print(f"Roll:{self.roll_orient:.4f}");
+            if(self.pitch is True):
+                print(f"Pitch:{self.pitch_orient:.4f}");
+            if(self.yaw is True):
+                print(f"Yaw:{self.yaw_orient:.4f}");
 
 
-
-imu = IMU(args.roll_angle, args.pitch_angle, args.yaw_angle, args.units)
-imu.get_imu_data();
-imu.print_imu_orientation();
+#imu = IMU(args.roll_angle, args.pitch_angle, args.yaw_angle, args.units)
+#imu.get_imu_data();
+#imu.print_imu_orientation();
 
 class Sensors(SenseHat):
     def __init__(self, pressure_units=None, temperature_units=None, humidity_units=None):
@@ -165,7 +175,7 @@ class Sensors(SenseHat):
         self.pressure_raw = ' '
 
         self.pressure_units = pressure_units
-        self.temperature_untis = temperature_units
+        self.temperature_units = temperature_units
         self.humidity_units = humidity_units
     
     def get_sensor_data(self):
@@ -177,64 +187,92 @@ class Sensors(SenseHat):
         print("temperature:{0}, humidity:{1}, pressure{2}".format(self.temperature_raw, self.humidity_raw, self.pressure_raw))
     
     def match_units(self):
-        match self.pressure_units:
-            case "hPa":
-                self.pressure_raw = self.pressure_raw
-                print(self.pressure_raw)
-            case "mmHg":
-                self.pressure_raw = self.pressure_raw * 0.75006157584566
-                print(self.pressure_raw)
-        match self.temperature_units:
-            case "C":
-                self.temperature_raw = self.temperature_raw
-                print(self.temperature_raw)
-            case "F":
-                self.temperature_raw = self.temperature_raw * (9/5) + 32
-                print(self.temperature_raw) 
-        match self.humidity_units:
-            case "%":
-                self.humidity_raw = self.humidity_raw
-                print(self.humidity_raw)
-            case "decimal":
-                self.humidity_raw = self.humidity_raw / 100
-                print(self.humidity_raw)           
+        if((self.pressure_units == "hPa" or self.pressure_units == "mmHg" or self.pressure_units == None) and
+            (self.temperature_units == "C" or self.temperature_units == "F" or self.temperature_units == None) and
+            (self.humidity_units == "%" or self.humidity_units == "decimal" or self.humidity_units == None)):
+            match self.pressure_units:
+                case "hPa":
+                    self.pressure_raw = self.pressure_raw
+                    print(self.pressure_raw)
+                case "mmHg":
+                    self.pressure_raw = self.pressure_raw * 0.75006157584566
+                    print(self.pressure_raw)
+                case None:
+                    self.pressure_raw = self.pressure_raw #set default
+                    self.pressure_units = "hPa"
+            match self.temperature_units:
+                case "C":
+                    self.temperature_raw = self.temperature_raw
+                    print(self.temperature_raw)
+                case "F":
+                    self.temperature_raw = self.temperature_raw * (9/5) + 32
+                    print(self.temperature_raw)
+                case None:
+                    self.temperature_raw = self.temperature_raw #set default
+                    self.temperature_units = "C"
+            match self.humidity_units:
+                case "%":
+                    self.humidity_raw = self.humidity_raw
+                    print(self.humidity_raw)
+                case "decimal":
+                    self.humidity_raw = self.humidity_raw / 100
+                    print(self.humidity_raw)
+                case None:
+                    self.humidity_raw = self.humidity_raw #set default
+                    self.humidity_units = "%"
+            if(self.temperature_units == "C"): 
+                self.temperature_units = "\u00B0C"
+            print("pressure:{0} {1}, temperature:{2} {3}, humidity:{4} {5}".format(self.pressure_raw, self.pressure_units, self.temperature_raw, self.temperature_units, self.humidity_raw, self.humidity_units))
 
-sens = Sensors(args.pressure_units, args.temperature_units, args.humidity_units)
-sens.get_sensor_data()
-sens.match_units()
 
-class JSON(IMU, Sensors, Matrix):
-    def __init__(self):
-        super().__init__() 
+
+#sens = Sensors(args.pressure_units, args.temperature_units, args.humidity_units)
+#sens.get_sensor_data()
+#sens.match_units()
+
+class JSON(Matrix, IMU, Sensors):
+    def __init__(self, pressure_units=None, temperature_units=None, humidity_units=None, roll=False, pitch=False, yaw=False, units=None):
+        Matrix.__init__(self)
+        IMU.__init__(self, roll, pitch, yaw, units)
+        Sensors.__init__(self, pressure_units, temperature_units, humidity_units)
+
     def print_raw_data_json(self):
         accel = {"x_accel":self.x_accel,
-                 "y_accel":self.y_accel,
-                 "z_accel":self.z_accel}
+                "y_accel":self.y_accel,
+                "z_accel":self.z_accel}
         mag = {"x_mag":self.x_mag,
-                 "y_mag":self.y_mag,
-                 "z_mag":self.z_mag}
+                "y_mag":self.y_mag,
+                "z_mag":self.z_mag}
         gyro = {"x_gyro":self.x_gyro,
-                 "y_gyro":self.y_gyro,
-                 "z_gyro":self.z_gyro}
+                "y_gyro":self.y_gyro,
+                "z_gyro":self.z_gyro}
         orientation = {"roll":self.roll_orient,
-                       "pitch": self.pitch_orient,
-                       "yaw": self.yaw_orient}
+                    "pitch": self.pitch_orient,
+                    "yaw": self.yaw_orient}
         
-        IMU = {"accelerometer_raw":accel,
-               "magnetometer_raw": mag,
-               "gyroscope_raw":gyro,
-               "orientation":orientation}
+        IMU = {"accelerometer_raw":{"value":accel,
+                                    "units":"g"},
+            "magnetometer_raw": {"value":mag, 
+                                 "units":"\u03BCT"},
+            "gyroscope_raw":{"value":gyro, 
+                             "units":"\u00B0/s"},
+            "orientation":{"value":orientation,
+                           "units":self.units}
+        }
 
-        sensors = {"temperature_sensor":self.temperature_raw,
-                   "humidity_sensor":self.humidity_raw,
-                   "pressure_sensor":self.pressure_raw}
+        sensors = {"temperature_sensor":{"value":self.temperature_raw,
+                                        "units":self.temperature_units},
+                "humidity_sensor":{"value":self.humidity_raw,
+                                    "units":self.humidity_units},
+                "pressure_sensor":{"value":self.pressure_raw,
+                                    "units":self.pressure_units}
+        }
 
         json_object = {"SenseHAT": {"IMU":IMU, 
                                     "Sensors":sensors,
                                     "RGB matrix":self.rgb_matrix
                                     }}
-        print(json.dumps(json_object, indent=4))
-    
+        print(json.dumps(json_object, ensure_ascii=False, indent=4))
         
 
 
@@ -245,8 +283,11 @@ class JSON(IMU, Sensors, Matrix):
     #sensors = Sensors();
     #sensors.get_raw_data()
 
-json_instance = JSON()
+json_instance = JSON(pressure_units = args.pressure_units, temperature_units = args.temperature_units, humidity_units = args.humidity_units,
+                     roll=args.roll_angle, pitch=args.pitch_angle, yaw=args.yaw_angle, units=args.units)
 json_instance.get_matrix_data()
 json_instance.get_imu_data()
+json_instance.print_imu_orientation()
 json_instance.get_sensor_data()
+json_instance.match_units()
 json_instance.print_raw_data_json();
