@@ -5,7 +5,7 @@ import math
 import time
 
 sense = SenseHat();
-time.sleep(0.5)
+time.sleep(1)
 parser = argparse.ArgumentParser(prog='SenseHAT parser', description='Parses CMD arguments')
 
 parser.add_argument('-r', '--red', action='store', type=int, help='Set the red color of RGB matrix')
@@ -19,7 +19,7 @@ parser.add_argument('-y', '--y', action='store',
 parser.add_argument('-roll', '--roll_angle', action='store_true', help='Get the roll angle of IMU')
 parser.add_argument('-pitch', '--pitch_angle', action='store_true', help='Get the pitch angle of IMU')
 parser.add_argument('-yaw', '--yaw_angle', action='store_true', help='Get the yaw angle pf IMU')
-parser.add_argument('-u', '--units', choices=["degrees", "radians", None], nargs='?', action='store', type=str, default=None, help='Change the unit of orientation')
+parser.add_argument('-u', '--units', choices=["degrees", "radians", None], nargs='?', action='store', const=True, default=None, type=str, help='Change the unit of orientation')
 
 parser.add_argument('-P', '--pressure_units', choices=["hPa", "mmHg", None], nargs='?', action='store', type=str, help='Change the pressure sensor units')
 parser.add_argument('-T', '--temperature_units', choices=["C", "F", None], nargs='?', action='store', type=str, help='Change the temperature sensor units')
@@ -103,6 +103,7 @@ class IMU(SenseHat):
         self.pitch = pitch
         self.yaw = yaw
         self.units = units
+        self.imu_orientation = {}
 
     def get_imu_data(self):
         self._acceleration = self.get_accelerometer_raw();
@@ -135,33 +136,57 @@ class IMU(SenseHat):
     
     def print_imu_orientation(self):
         if not(self.roll or self.pitch or self.yaw):
+            self.units = "Not set"
+            self.imu_orientation["roll"] = "Not set"
+            self.imu_orientation["pitch"] = "Not set"
+            self.imu_orientation["yaw"] = "Not set"
             return
             
         print("IMU Orientation:\n") 
+  
         if(self.units == 'degrees'):
             self.units = "\u00B0"
             if(self.roll is True):
+                self.imu_orientation["roll"] = self.roll_orient
                 print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
+                self.imu_orientation["pitch"] = self.pitch_orient
                 print(f"Pitch:{self.pitch_orient:.4f}");
             if(self.yaw is True):
+                self.imu_orientation["yaw"] = self.yaw_orient
                 print(f"Yaw:{self.yaw_orient:.4f}");
         elif(self.units == 'radians'):
             if(self.roll is True):
+                self.imu_orientation["roll"] = math.radians(self.roll_orient)
                 print(f"Roll:{math.radians(self.roll_orient):.4f}\n");
             if(self.pitch is True):
+                self.imu_orientation["pitch"] = math.radians(self.pitch_orient)
                 print(f"Pitch:{math.radians(self.pitch_orient):.4f}\n");
             if(self.yaw is True):
+                self.imu_orientation["yaw"] = math.radians(self.yaw_orient)
                 print(f"Yaw:{math.radians(self.yaw_orient):.4f}\n");
+        elif(self.units is True):
+            self.units = "Not set"
+            if(self.roll is True):
+                self.imu_orientation["roll"] = f"{self.roll_orient:.4f}"
+                print(f"Roll:{self.roll_orient:.4f}");
+            if(self.pitch is True):
+                self.imu_orientation["pitch"] = f"{self.pitch_orient:.4f}"
+                print(f"Pitch:{self.pitch_orient:.4f}");
+            if(self.yaw is True):
+                self.imu_orientation["yaw"] = f"{self.yaw_orient:.4f}"
+                print(f"Yaw:{self.yaw_orient:.4f}");               
         else:
             self.units = "\u00B0"
             if(self.roll is True):
+                self.imu_orientation["roll"] = f"{self.roll_orient:.4f}"
                 print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
+                self.imu_orientation["pitch"] = f"{self.pitch_orient:.4f}"
                 print(f"Pitch:{self.pitch_orient:.4f}");
             if(self.yaw is True):
+                self.imu_orientation["yaw"] = f"{self.yaw_orient:.4f}"
                 print(f"Yaw:{self.yaw_orient:.4f}");
-
 
 #imu = IMU(args.roll_angle, args.pitch_angle, args.yaw_angle, args.units)
 #imu.get_imu_data();
@@ -246,9 +271,7 @@ class JSON(Matrix, IMU, Sensors):
         gyro = {"x_gyro":self.x_gyro,
                 "y_gyro":self.y_gyro,
                 "z_gyro":self.z_gyro}
-        orientation = {"roll":self.roll_orient,
-                    "pitch": self.pitch_orient,
-                    "yaw": self.yaw_orient}
+
         
         IMU = {"accelerometer_raw":{"value":accel,
                                     "units":"g"},
@@ -256,7 +279,7 @@ class JSON(Matrix, IMU, Sensors):
                                  "units":"\u03BCT"},
             "gyroscope_raw":{"value":gyro, 
                              "units":"\u00B0/s"},
-            "orientation":{"value":orientation,
+            "orientation":{"value":self.imu_orientation,
                            "units":self.units}
         }
 
@@ -276,12 +299,6 @@ class JSON(Matrix, IMU, Sensors):
         
 
 
-    #imu = IMU();
-    #matrix.get_raw_data()
-    #imu.get_raw_data();
-
-    #sensors = Sensors();
-    #sensors.get_raw_data()
 
 json_instance = JSON(pressure_units = args.pressure_units, temperature_units = args.temperature_units, humidity_units = args.humidity_units,
                      roll=args.roll_angle, pitch=args.pitch_angle, yaw=args.yaw_angle, units=args.units)
