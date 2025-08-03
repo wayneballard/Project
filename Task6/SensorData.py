@@ -21,9 +21,9 @@ parser.add_argument('-pitch', '--pitch_angle', action='store_true', help='Get th
 parser.add_argument('-yaw', '--yaw_angle', action='store_true', help='Get the yaw angle pf IMU')
 parser.add_argument('-u', '--units', choices=["degrees", "radians", None], nargs='?', action='store', const=True, default=None, type=str, help='Change the unit of orientation')
 
-parser.add_argument('-P', '--pressure_units', choices=["hPa", "mmHg", None], nargs='?', action='store', type=str, help='Change the pressure sensor units')
-parser.add_argument('-T', '--temperature_units', choices=["C", "F", None], nargs='?', action='store', type=str, help='Change the temperature sensor units')
-parser.add_argument('-H', '--humidity_units', choices=['%', 'decimal', None], nargs='?', action='store', type=str, help='Change the humidity sensor units')
+parser.add_argument('-P', '--pressure_units', choices=["hPa", "mmHg", None], nargs='?', action='store', default=None, const=True, type=str, help='Change the pressure sensor units')
+parser.add_argument('-T', '--temperature_units', choices=["C", "F", None], nargs='?', action='store', default=None, const=True, type=str, help='Change the temperature sensor units')
+parser.add_argument('-H', '--humidity_units', choices=['%', 'decimal', None], nargs='?', action='store', default=None, const=True, type=str, help='Change the humidity sensor units')
 args = parser.parse_args();
 
 
@@ -66,11 +66,11 @@ class Matrix(SenseHat):
                 self.red = 0
                 self.green = 0
                 self.blue = 0
-                print("Since no arguments for colors were provided, all colors were set to zero")
-            else:
-                print("You provided the value out of range. Please, try again")
-        else:
-            print("Please, set the coordinates between 7 and 0 in both x and y direction")
+       #        print("Since no arguments for colors were provided, all colors were set to zero")
+       #     else:
+       #         print("You provided the value out of range. Please, try again")
+       # else:
+       #     print("Please, set the coordinates between 7 and 0 in both x and y direction")
 
     def create_pattern(self):
         X = self.x;
@@ -142,51 +142,51 @@ class IMU(SenseHat):
             self.imu_orientation["yaw"] = "Not set"
             return
             
-        print("IMU Orientation:\n") 
+        #print("IMU Orientation:\n") 
   
         if(self.units == 'degrees'):
             self.units = "\u00B0"
             if(self.roll is True):
                 self.imu_orientation["roll"] = self.roll_orient
-                print(f"Roll:{self.roll_orient:.4f}");
+                #print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
                 self.imu_orientation["pitch"] = self.pitch_orient
-                print(f"Pitch:{self.pitch_orient:.4f}");
+               # print(f"Pitch:{self.pitch_orient:.4f}");
             if(self.yaw is True):
                 self.imu_orientation["yaw"] = self.yaw_orient
-                print(f"Yaw:{self.yaw_orient:.4f}");
+                #print(f"Yaw:{self.yaw_orient:.4f}");
         elif(self.units == 'radians'):
             if(self.roll is True):
                 self.imu_orientation["roll"] = math.radians(self.roll_orient)
-                print(f"Roll:{math.radians(self.roll_orient):.4f}\n");
+                #print(f"Roll:{math.radians(self.roll_orient):.4f}\n");
             if(self.pitch is True):
                 self.imu_orientation["pitch"] = math.radians(self.pitch_orient)
-                print(f"Pitch:{math.radians(self.pitch_orient):.4f}\n");
+                #print(f"Pitch:{math.radians(self.pitch_orient):.4f}\n");
             if(self.yaw is True):
                 self.imu_orientation["yaw"] = math.radians(self.yaw_orient)
-                print(f"Yaw:{math.radians(self.yaw_orient):.4f}\n");
+               # print(f"Yaw:{math.radians(self.yaw_orient):.4f}\n");
         elif(self.units is True):
             self.units = "Not set"
             if(self.roll is True):
                 self.imu_orientation["roll"] = f"{self.roll_orient:.4f}"
-                print(f"Roll:{self.roll_orient:.4f}");
+                #print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
                 self.imu_orientation["pitch"] = f"{self.pitch_orient:.4f}"
-                print(f"Pitch:{self.pitch_orient:.4f}");
+                #print(f"Pitch:{self.pitch_orient:.4f}");
             if(self.yaw is True):
                 self.imu_orientation["yaw"] = f"{self.yaw_orient:.4f}"
-                print(f"Yaw:{self.yaw_orient:.4f}");               
+                #print(f"Yaw:{self.yaw_orient:.4f}");               
         else:
             self.units = "\u00B0"
             if(self.roll is True):
                 self.imu_orientation["roll"] = f"{self.roll_orient:.4f}"
-                print(f"Roll:{self.roll_orient:.4f}");
+                #print(f"Roll:{self.roll_orient:.4f}");
             if(self.pitch is True):
                 self.imu_orientation["pitch"] = f"{self.pitch_orient:.4f}"
-                print(f"Pitch:{self.pitch_orient:.4f}");
+                #print(f"Pitch:{self.pitch_orient:.4f}");
             if(self.yaw is True):
                 self.imu_orientation["yaw"] = f"{self.yaw_orient:.4f}"
-                print(f"Yaw:{self.yaw_orient:.4f}");
+                #print(f"Yaw:{self.yaw_orient:.4f}");
 
 #imu = IMU(args.roll_angle, args.pitch_angle, args.yaw_angle, args.units)
 #imu.get_imu_data();
@@ -198,6 +198,8 @@ class Sensors(SenseHat):
         self.temperature_raw = ' '
         self.humidity_raw = ' '
         self.pressure_raw = ' '
+        self.sensors_data = {}
+
 
         self.pressure_units = pressure_units
         self.temperature_units = temperature_units
@@ -212,42 +214,71 @@ class Sensors(SenseHat):
         print("temperature:{0}, humidity:{1}, pressure{2}".format(self.temperature_raw, self.humidity_raw, self.pressure_raw))
     
     def match_units(self):
-        if((self.pressure_units == "hPa" or self.pressure_units == "mmHg" or self.pressure_units == None) and
-            (self.temperature_units == "C" or self.temperature_units == "F" or self.temperature_units == None) and
-            (self.humidity_units == "%" or self.humidity_units == "decimal" or self.humidity_units == None)):
+        if((self.pressure_units == "hPa" or self.pressure_units == "mmHg" or self.pressure_units == None or self.pressure_units is True) and
+            (self.temperature_units == "C" or self.temperature_units == "F" or self.temperature_units == None or self.temperature_units is True) and
+            (self.humidity_units == "%" or self.humidity_units == "decimal" or self.humidity_units == None or self.humidity_units is True)):
             match self.pressure_units:
                 case "hPa":
                     self.pressure_raw = self.pressure_raw
-                    print(self.pressure_raw)
+                    self.sensors_data["pressure_sensor"] = {}
+                    self.sensors_data["pressure_sensor"]["value"] = self.pressure_raw
+                    self.sensors_data["pressure_sensor"]["units"] = self.pressure_units
+                    #print(self.pressure_raw)
                 case "mmHg":
                     self.pressure_raw = self.pressure_raw * 0.75006157584566
-                    print(self.pressure_raw)
-                case None:
+                    self.sensors_data["pressure_sensor"] = {}
+                    self.sensors_data["pressure_sensor"]["value"] = self.pressure_raw
+                    self.sensors_data["pressure_sensor"]["units"] = self.pressure_units
+                    #print(self.pressure_raw)
+            if self.pressure_units is True:
                     self.pressure_raw = self.pressure_raw #set default
-                    self.pressure_units = "hPa"
+                    self.sensors_data["pressure_sensor"] = {}
+                    self.sensors_data["pressure_sensor"]["value"] = "Not set"
+                    self.sensors_data["pressure_sensor"]["units"] = "Not set"
+                    self.pressure_units = "Not set"
             match self.temperature_units:
                 case "C":
+                    if(self.temperature_units == "C"): 
+                        self.temperature_units = "\u00B0C"                    
                     self.temperature_raw = self.temperature_raw
-                    print(self.temperature_raw)
+                    self.sensors_data["temperature_sensor"] = {}
+                    self.sensors_data["temperature_sensor"]["value"] = self.temperature_raw
+                    self.sensors_data["temperature_sensor"]["units"] = self.temperature_units                    
+                   # print(self.temperature_raw)
                 case "F":
                     self.temperature_raw = self.temperature_raw * (9/5) + 32
-                    print(self.temperature_raw)
-                case None:
+                    self.sensors_data["temperature_sensor"] = {}
+                    self.sensors_data["temperature_sensor"]["value"] = self.temperature_raw  
+                    self.sensors_data["temperature_sensor"]["units"] = self.temperature_units                     
+                    #print(self.temperature_raw)
+            if self.temperature_units is True:
                     self.temperature_raw = self.temperature_raw #set default
-                    self.temperature_units = "C"
+                    self.sensors_data["temperature_sensor"] = {}
+                    self.sensors_data["temperature_sensor"]["value"] = "Not set"
+                    self.sensors_data["temperature_sensor"]["units"] = "Not set"                       
+                    self.temperature_units = "Not set"                  
             match self.humidity_units:
                 case "%":
                     self.humidity_raw = self.humidity_raw
-                    print(self.humidity_raw)
+                    self.sensors_data["humidity_sensor"] = {}
+                    self.sensors_data["humidity_sensor"]["value"] = self.humidity_raw 
+                    self.sensors_data["humidity_sensor"]["units"] = self.humidity_units                      
+                    #print(self.humidity_raw)
                 case "decimal":
                     self.humidity_raw = self.humidity_raw / 100
-                    print(self.humidity_raw)
-                case None:
+                    self.sensors_data["humidity_sensor"] = {}
+                    self.sensors_data["humidity_sensor"]["value"] = self.humidity_raw
+                    self.sensors_data["humidity_sensor"]["units"] = self.humidity_units                     
+                    #print(self.humidity_raw)
+            if self.humidity_units is True:
                     self.humidity_raw = self.humidity_raw #set default
-                    self.humidity_units = "%"
+                    self.sensors_data["humidity_sensor"] = {}
+                    self.sensors_data["humidity_sensor"]["value"] = "Not set"
+                    self.sensors_data["humidity_sensor"]["units"] = "Not set"                       
+                    self.humidity_units = "Not set"
             if(self.temperature_units == "C"): 
                 self.temperature_units = "\u00B0C"
-            print("pressure:{0} {1}, temperature:{2} {3}, humidity:{4} {5}".format(self.pressure_raw, self.pressure_units, self.temperature_raw, self.temperature_units, self.humidity_raw, self.humidity_units))
+           # print("pressure:{0} {1}, temperature:{2} {3}, humidity:{4} {5}".format(self.pressure_raw, self.pressure_units, self.temperature_raw, self.temperature_units, self.humidity_raw, self.humidity_units))
 
 
 
@@ -292,19 +323,19 @@ class JSON(Matrix, IMU, Sensors):
         }
 
         json_object = {"SenseHAT": {"IMU":IMU, 
-                                    "Sensors":sensors,
+                                    "Sensors":self.sensors_data,
                                     "RGB matrix":self.rgb_matrix
                                     }}
         print(json.dumps(json_object, ensure_ascii=False, indent=4))
         
 
 
-
-json_instance = JSON(pressure_units = args.pressure_units, temperature_units = args.temperature_units, humidity_units = args.humidity_units,
-                     roll=args.roll_angle, pitch=args.pitch_angle, yaw=args.yaw_angle, units=args.units)
-json_instance.get_matrix_data()
-json_instance.get_imu_data()
-json_instance.print_imu_orientation()
-json_instance.get_sensor_data()
-json_instance.match_units()
-json_instance.print_raw_data_json();
+if __name__ == "__main__":
+    json_instance = JSON(pressure_units = args.pressure_units, temperature_units = args.temperature_units, humidity_units = args.humidity_units,
+                        roll=args.roll_angle, pitch=args.pitch_angle, yaw=args.yaw_angle, units=args.units)
+    json_instance.get_matrix_data()
+    json_instance.get_imu_data()
+    json_instance.print_imu_orientation()
+    json_instance.get_sensor_data()
+    json_instance.match_units()
+    json_instance.print_raw_data_json();
