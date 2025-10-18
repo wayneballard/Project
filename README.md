@@ -13,6 +13,16 @@ Web-based application which allows for real-time observation of all the data fro
 ### Python Dependencies
 Install the required Python packages:
 
+```bash
+sudo apt-get update
+sudo apt-get install sense-hat
 
 ```bash
 pip3 install Flask Flask-Cors sense-hat
+
+
+## Installation
+
+```bash
+git clone <repo_url>
+cd <repo_name>
