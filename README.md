@@ -17,7 +17,7 @@ Install the required Python packages:
 sudo apt-get update
 sudo apt-get install sense-hat
 pip3 install Flask Flask-Cors sense-hat
-
+```
 
 ### Installation
 
