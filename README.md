@@ -5,11 +5,11 @@ Web-based application which allows for real-time observation of all the data fro
 ## Requirements
 
 ### Hardware
-- Raspberry Pi (any model with GPIO support)
+- Raspberry Pi 3,4,5
 - Sense HAT attached to the Raspberry Pi
 
 ### Operating System
-- Raspberry Pi OS (formerly Raspbian), Python 3.x installed
+- Raspberry Pi OS (formerly Raspbian)
 
 ### Python Dependencies
 Install the required Python packages:
