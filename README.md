@@ -20,16 +20,16 @@ pip3 install Flask Flask-Cors sense-hat
 ```
 
 ### Installation
-1.Clone the repository:
+1. Clone the repository:
 ```bash
 git clone <repo_url>
 cd <repo_name>
 ```
-2.Run the server:
+2. Run the server:
 ```bash
 python3 sense_server.py
 ```
-3.Open a web-browser and navigate to:
+3. Open a web-browser and navigate to:
 ```bash
 http://<raspberry_pi_ip>:5000
 ```
