@@ -1,0 +1,217 @@
+<!-- static/index.html -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sense HAT Live</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 20px; }
+    h1 { text-align:center }
+    #controls { text-align:center; margin-bottom: 12px; }
+    .card { border:1px solid #ddd; padding:12px; border-radius:6px; margin:8px; display:inline-block; min-width:220px; vertical-align:top; }
+    #matrix { display:inline-block; padding:10px; border-radius:10px; background:#f2f2f2; }
+    .pixel { width:28px; height:28px; border-radius:4px; display:inline-block; margin:3px; border:2px solid #ccc; box-sizing:border-box; cursor:pointer; }
+    #sensors-list { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+    pre { white-space:pre-wrap; word-break:break-word; }
+    #joystick { max-height:150px; overflow:auto; font-size:0.9em; }
+    button { margin:4px; padding:8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Sense HAT Live Dashboard</h1>
+  <div id="controls">
+    <button id="btn-refresh">Refresh Now</button>
+    <button id="btn-clear">Clear Matrix</button>
+    <button id="btn-fill">Fill Matrix (Pick Color)</button>
+  </div>
+
+  <div id="sensors-list">
+    <!-- sensor cards injected here -->
+  </div>
+
+  <h3 style="text-align:center">LED Matrix</h3>
+  <div style="text-align:center">
+    <div id="matrix"></div>
+  </div>
+
+  <h3 style="text-align:center">Joystick (recent events)</h3>
+  <div id="joystick" class="card" style="width:520px; margin:auto"></div>
+
+<script>
+const pollingMs = 500;
+let pollTimer = null;
+
+async function fetchSensors(){
+  try{
+    const res = await fetch('/api/sensors');
+    if(!res.ok) throw new Error('Network');
+    const data = await res.json();
+    renderSensorsList(data);
+  } catch(err){
+    console.error('fetchSensors', err);
+  }
+}
+
+function renderSensorsList(list){
+  const container = document.getElementById('sensors-list');
+  container.innerHTML = '';
+  let matrixPixels = null;
+  let joystickEvents = null;
+
+  list.forEach(item=>{
+    if(item.id === 'rgb_matrix'){ matrixPixels = item.value; return; }
+    if(item.id === 'joystick_events'){ joystickEvents = item.value; return; }
+
+    const c = document.createElement('div');
+    c.className = 'card';
+    const title = document.createElement('div');
+    title.style.fontWeight='600';
+    title.textContent = item.label || item.id;
+    const val = document.createElement('div');
+    if(typeof item.value === 'object'){
+      val.innerHTML = '<pre>' + JSON.stringify(item.value, null, 2) + '</pre>';
+    } else {
+      val.textContent = (Number.isFinite(item.value) ? Number(item.value).toFixed(3) : item.value);
+    }
+    const unit = document.createElement('div');
+    unit.style.marginTop='6px';
+    unit.style.fontSize='0.9em';
+    unit.style.color='#555';
+    unit.textContent = item.unit ? item.unit : '';
+    c.appendChild(title);
+    c.appendChild(val);
+    c.appendChild(unit);
+    container.appendChild(c);
+  });
+
+  renderMatrix(matrixPixels);
+  renderJoystick(joystickEvents);
+}
+
+function renderMatrix(pixels){
+  const matrixDiv = document.getElementById('matrix');
+  matrixDiv.innerHTML = '';
+  if(!pixels || pixels.length !== 64){
+    matrixDiv.innerHTML = '<div class="card">No matrix data</div>';
+    return;
+  }
+
+  for(let row=0; row<8; row++){
+    const rowDiv = document.createElement('div');
+    for(let col=0; col<8; col++){
+      const idx = row*8 + col;
+      const p = pixels[idx] || [0,0,0];
+      const rr = Number(p[0]) || 0;
+      const gg = Number(p[1]) || 0;
+      const bb = Number(p[2]) || 0;
+
+      const el = document.createElement('div');
+      el.className = 'pixel';
+      el.style.backgroundColor = `rgb(${rr},${gg},${bb})`;
+
+      // click => open color picker
+      el.addEventListener('click', ()=>{
+        const input = document.createElement('input');
+        input.type = 'color';
+        input.value = rgbToHex(rr,gg,bb);
+        input.style.position = 'absolute';
+        input.style.left = '-9999px';
+        document.body.appendChild(input);
+
+        // Use "change" so we only send on user selection finish; "input" also works if you want live
+        input.addEventListener('change', async ()=>{
+          const { rVal, gVal, bVal } = hexToRgb(input.value);
+          try{
+            await fetch('/api/matrix/pixel', {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ x: col, y: row, r: rVal, g: gVal, b: bVal })
+            });
+            // update UI
+            await fetchSensors();
+          }catch(e){
+            console.error('set pixel error', e);
+          } finally {
+            input.remove();
+          }
+        });
+
+        // open picker
+        input.click();
+      });
+
+      rowDiv.appendChild(el);
+    }
+    matrixDiv.appendChild(rowDiv);
+  }
+}
+
+function renderJoystick(events){
+  const el = document.getElementById('joystick');
+  el.innerHTML = '';
+  if(!events || events.length === 0){
+    el.textContent = 'No joystick events yet';
+    return;
+  }
+  events.forEach(ev=>{
+    // server should give timestamp in seconds or ms; if you return seconds, convert:
+    // try to detect: if timestamp looks small (<1e12) treat as seconds -> *1000
+    let tsMs = ev.timestamp;
+    if(tsMs && tsMs < 1e12) tsMs = tsMs * 1000;
+    const timeStr = tsMs ? new Date(tsMs).toLocaleTimeString() : '';
+    const div = document.createElement('div');
+    div.textContent = `${timeStr} - ${ev.direction} ${ev.action}`;
+    el.appendChild(div);
+  });
+}
+
+function rgbToHex(r,g,b){
+  return "#" + [r,g,b].map(x=>{
+    const h = Number(x).toString(16);
+    return h.length===1 ? "0"+h : h;
+  }).join('');
+}
+function hexToRgb(hex){
+  const bigint = parseInt(hex.slice(1),16);
+  return { rVal:(bigint>>16)&255, gVal:(bigint>>8)&255, bVal:bigint&255 };
+}
+
+document.getElementById('btn-refresh').addEventListener('click', ()=> fetchSensors());
+document.getElementById('btn-clear').addEventListener('click', async ()=>{
+  await fetch('/api/matrix/clear', {method:'POST'});
+  await fetchSensors();
+});
+document.getElementById('btn-fill').addEventListener('click', ()=>{
+  // fill matrix with single color: open color picker once, then send full matrix
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.style.position = 'absolute';
+  input.style.left = '-9999px';
+  document.body.appendChild(input);
+  input.addEventListener('change', async ()=>{
+    const { rVal, gVal, bVal } = hexToRgb(input.value);
+    // prepare 64 pixels
+    const pixels = Array.from({length:64},()=>[rVal,gVal,bVal]);
+    try{
+      await fetch('/api/matrix/pixels', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ pixels })
+      });
+      await fetchSensors();
+    }catch(e){
+      console.error('fill error', e);
+    }finally{
+      input.remove();
+    }
+  });
+  input.click();
+});
+
+(async function startPolling(){
+  await fetchSensors();
+  pollTimer = setInterval(fetchSensors, pollingMs);
+})();
+</script>
+</body>
+</html>

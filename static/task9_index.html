@@ -1,0 +1,208 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sense HAT LED Matrix Control</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    :root {
+      --size: 8;           /* matrix is 8x8 */
+      --cell: 38px;        /* visual size of a pixel */
+      --gap: 6px;          /* spacing between pixels */
+      --radius: 6px;
+      --border: 1px solid #ccc;
+      --shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; margin: 24px; background:#fafafa; color:#111; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p.hint { margin: 0 0 14px; color: #555; }
+
+    .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+    .toolbar button { padding:10px 12px; border-radius:10px; border:var(--border); background:#fff; box-shadow:var(--shadow); cursor:pointer; }
+    .toolbar button:active { transform: translateY(1px); }
+
+    .matrix { display:grid; grid-template-columns: repeat(var(--size), var(--cell)); grid-auto-rows: var(--cell); gap: var(--gap); width: max-content; background:#f1f1f1; padding: var(--gap); border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.06) inset; }
+
+    .pixel { position:relative; width: var(--cell); height: var(--cell); border-radius: var(--radius); border: var(--border); box-shadow: var(--shadow); background:#000; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .pixel:focus { outline: 2px solid #2684ff55; outline-offset:2px; }
+
+    /* hide native color input but keep it accessible for .change() */
+    .picker { position:absolute; inset:0; opacity:0; cursor:pointer; }
+
+    .legend { margin-top:14px; color:#666; font-size: 14px; }
+    code { background:#f2f2f2; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <h1>Sense HAT LED Matrix Control</h1>
+  <p class="hint">Click a pixel to pick a color. Changes are sent via <code>POST</code>. Use <code>Refresh</code> to load current state via <code>GET</code>.</p>
+
+  <div class="toolbar">
+    <button id="refreshBtn" title="GET /api/leds">🔄 Refresh</button>
+    <button id="saveAllBtn" title="POST /api/leds (full matrix)">💾 Save All</button>
+    <button id="clearBtn" title="Turn everything off">🧹 Clear</button>
+  </div>
+
+  <div id="matrix" class="matrix" aria-label="8 by 8 LED matrix" role="grid"></div>
+
+  <div class="legend">
+    <div>Uses jQuery: <code>$()</code>, <code>$("&lt;div&gt;")</code>, <code>.append()</code>, <code>$.get()</code>, <code>.click()</code>, <code>.change()</code>, and <code>$.ajax()</code> for JSON POST.</div>
+    <div>Expected API shape (example): <code>GET /api/leds → { matrix: [["#FF0000", ...], ...] }</code> or <code>[[r,g,b],...]</code></div>
+    <div>Single-pixel update: <code>POST /api/leds → { x, y, color: "#RRGGBB" }</code>. Full update: <code>{ matrix: [[...], ...] }</code></div>
+  </div>
+
+  <script>
+    const SIZE = 8; // Sense HAT is 8x8
+
+    // --- Helpers -----------------------------------------------------------
+    function rgbTripletToHex(triplet) {
+      if (!Array.isArray(triplet) || triplet.length !== 3) return '#000000';
+      const [r,g,b] = triplet.map(n => Math.max(0, Math.min(255, Number(n)||0)));
+      return '#' + [r,g,b].map(n => n.toString(16).padStart(2,'0')).join('').toUpperCase();
+    }
+
+    function normalizeColor(value) {
+      if (typeof value === 'string') {
+        // assume already like #RRGGBB or css color; browsers normalize for <input type="color">
+        try { return value.startsWith('#') ? value.toUpperCase() : value; } catch (_) { return '#000000'; }
+      }
+      return rgbTripletToHex(value);
+    }
+
+    function emptyMatrix(hex = '#000000') {
+      return Array.from({length: SIZE}, () => Array.from({length: SIZE}, () => hex));
+    }
+
+    // --- DOM builders ------------------------------------------------------
+    function buildMatrix(initialData) {
+      const $m = $('#matrix');
+      $m.empty();
+
+      // Ensure data is normalized to hex strings
+      const data = (initialData && initialData.matrix) ? initialData.matrix : initialData;
+      const rows = Array.isArray(data) && data.length === SIZE ? data : emptyMatrix();
+
+      for (let y = 0; y < SIZE; y++) {
+        const row = Array.isArray(rows[y]) ? rows[y] : emptyMatrix()[y];
+        for (let x = 0; x < SIZE; x++) {
+          const hex = normalizeColor(row[x] ?? '#000000');
+
+          // Create pixel
+          const $pixel = $('<div>', {
+            class: 'pixel', role: 'gridcell', tabindex: 0,
+            'data-x': x, 'data-y': y
+          }).css('background', hex);
+
+          // Hidden color picker overlaid (we rely on .change())
+          const $picker = $('<input>', {
+            type: 'color', class: 'picker', value: hex,
+            'aria-label': `Pick color for pixel ${x},${y}`
+          });
+
+          // Click on the pixel opens the picker
+          $pixel.click(function () { $picker.trigger('click'); });
+
+          // When picker changes, POST the single-pixel update
+          $picker.change(function () {
+            const color = $(this).val();
+            const px = Number($pixel.data('x'));
+            const py = Number($pixel.data('y'));
+
+            $.ajax({
+              url: '/api/leds',
+              method: 'POST',
+              contentType: 'application/json',
+              data: JSON.stringify({ x: px, y: py, color }),
+            }).done(() => {
+              // reflect the change locally
+              $pixel.css('background', color);
+            }).fail((xhr) => {
+              console.error('POST failed', xhr?.responseText || xhr);
+              alert('Failed to update LED. Check server logs.');
+              // revert picker to previous color
+              $picker.val($pixel.css('background-color'));
+            });
+          });
+
+          $pixel.append($picker);
+          $m.append($pixel);
+        }
+      }
+    }
+
+    function readMatrixFromDOM() {
+      const out = []; // 8 rows of 8 hex strings
+      for (let y = 0; y < SIZE; y++) {
+        const row = [];
+        for (let x = 0; x < SIZE; x++) {
+          const $p = $(`.pixel[data-x=${x}][data-y=${y}]`);
+          // get background as computed rgb(...) → convert to hex via canvas trick
+          const rgb = window.getComputedStyle($p[0]).backgroundColor; // like "rgb(255, 0, 0)"
+          const hex = rgbToHex(rgb);
+          row.push(hex);
+        }
+        out.push(row);
+      }
+      return out;
+    }
+
+    function rgbToHex(rgbString) {
+      // supports rgb(r,g,b) and rgba(r,g,b,a)
+      const m = rgbString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (!m) return '#000000';
+      const [r,g,b] = m.slice(1).map(n => parseInt(n, 10));
+      return '#' + [r,g,b].map(n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+
+    // --- Networking --------------------------------------------------------
+    function refreshFromServer() {
+      $.get('/api/leds', function (res) {
+        // res may be {matrix: [...] } or just [ ... ]
+        const data = Array.isArray(res) ? { matrix: res } : res;
+        buildMatrix(data);
+      }).fail(function (xhr) {
+        console.error('GET failed', xhr?.responseText || xhr);
+        alert('Failed to load matrix. Ensure the server is running at /api/leds');
+        buildMatrix(emptyMatrix());
+      });
+    }
+
+    function postFullMatrix(matrix) {
+      return $.ajax({
+        url: '/api/leds',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ matrix }),
+      });
+    }
+
+    // --- Toolbar actions ---------------------------------------------------
+    $('#refreshBtn').click(function () { refreshFromServer(); });
+
+    $('#saveAllBtn').click(function () {
+      const matrix = readMatrixFromDOM();
+      postFullMatrix(matrix)
+        .done(() => alert('Matrix saved'))
+        .fail((xhr) => {
+          console.error('POST full matrix failed', xhr?.responseText || xhr);
+          alert('Failed to save matrix.');
+        });
+    });
+
+    $('#clearBtn').click(function () {
+      // set all pixels to black locally, then POST full matrix
+      const blank = emptyMatrix('#000000');
+      buildMatrix({ matrix: blank });
+      postFullMatrix(blank).fail(() => alert('Failed to clear on device.'));
+    });
+
+    // --- Init --------------------------------------------------------------
+    $(function init() {
+      // Build an empty grid immediately, then fetch live data
+      buildMatrix(emptyMatrix());
+      refreshFromServer();
+    });
+  </script>
+</body>
+</html>

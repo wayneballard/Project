@@ -1,0 +1,151 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task 10 - Sense HAT LED Matrix Control</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --size: 8;
+      --cell: 38px;
+      --gap: 6px;
+      --radius: 6px;
+      --border: 1px solid #ccc;
+      --shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    body { background:#fafafa; color:#111; }
+    .matrix { display:grid; grid-template-columns: repeat(var(--size), var(--cell)); grid-auto-rows: var(--cell); gap: var(--gap); width: max-content; background:#f1f1f1; padding: var(--gap); border-radius: 16px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.06); margin: auto; }
+    .pixel { position:relative; width: var(--cell); height: var(--cell); border-radius: var(--radius); border: var(--border); box-shadow: var(--shadow); background:#000; cursor:pointer; }
+    .picker { position:absolute; inset:0; opacity:0; cursor:pointer; }
+    .legend { margin-top:14px; color:#666; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <h1 class="text-center mb-4">Task 10 - Sense HAT LED Matrix Control</h1>
+
+    <!-- Sensor Cards -->
+    <div class="row mb-4 text-center">
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5>🌡️ Temperature</h5>
+            <p id="tempVal" class="fs-4">-- °C</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5>💧 Humidity</h5>
+            <p id="humVal" class="fs-4">-- %</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5>📈 Pressure</h5>
+            <p id="pressVal" class="fs-4">-- hPa</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="d-flex justify-content-center gap-2 mb-4 flex-wrap">
+      <button id="refreshBtn" class="btn btn-primary">🔄 Refresh</button>
+      <button id="saveAllBtn" class="btn btn-success">💾 Save All</button>
+      <button id="clearBtn" class="btn btn-danger">🧹 Clear</button>
+    </div>
+
+    <!-- Matrix -->
+    <div id="matrix" class="matrix" aria-label="8 by 8 LED matrix" role="grid"></div>
+
+    <!-- Legend -->
+    <div class="legend mt-4">
+      Uses jQuery to interact with <code>/api/leds</code> and <code>/api/sensors</code>.
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 8;
+
+    function rgbToHex(rgbString) {
+      const m = rgbString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (!m) return '#000000';
+      const [r,g,b] = m.slice(1).map(n => parseInt(n, 10));
+      return '#' + [r,g,b].map(n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+
+    function emptyMatrix(hex = '#000000') {
+      return Array.from({length: SIZE}, () => Array.from({length: SIZE}, () => hex));
+    }
+
+    function normalizeColor(value) {
+      if (typeof value === 'string' && value.startsWith('#')) return value.toUpperCase();
+      return '#000000';
+    }
+
+    function buildMatrix(initialData) {
+      const $m = $('#matrix').empty();
+      const rows = (initialData && initialData.matrix) || emptyMatrix();
+
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          const hex = normalizeColor(rows[y]?.[x] ?? '#000000');
+          const $pixel = $('<div>', { class: 'pixel', 'data-x': x, 'data-y': y }).css('background', hex);
+          const $picker = $('<input>', { type: 'color', class: 'picker', value: hex });
+          $pixel.click(() => $picker.trigger('click'));
+          $picker.change(function () {
+            const color = $(this).val();
+            $.ajax({ url: '/api/leds', method: 'POST', contentType: 'application/json', data: JSON.stringify({ x, y, color }) })
+              .done(() => $pixel.css('background', color));
+          });
+          $pixel.append($picker);
+          $m.append($pixel);
+        }
+      }
+    }
+
+    function readMatrixFromDOM() {
+      const out = [];
+      for (let y = 0; y < SIZE; y++) {
+        const row = [];
+        for (let x = 0; x < SIZE; x++) {
+          const rgb = window.getComputedStyle($(`.pixel[data-x=${x}][data-y=${y}]`)[0]).backgroundColor;
+          row.push(rgbToHex(rgb));
+        }
+        out.push(row);
+      }
+      return out;
+    }
+
+    function refreshFromServer() {
+      $.get('/api/leds', res => buildMatrix(res)).fail(() => buildMatrix(emptyMatrix()));
+    }
+
+    function updateSensors() {
+      $.get('/api/sensors', data => {
+        $('#tempVal').text(data.temperature + " °C");
+        $('#humVal').text(data.humidity + " %");
+        $('#pressVal').text(data.pressure + " hPa");
+      });
+    }
+
+    $('#refreshBtn').click(refreshFromServer);
+    $('#saveAllBtn').click(() => $.ajax({ url: '/api/leds', method: 'POST', contentType: 'application/json', data: JSON.stringify({ matrix: readMatrixFromDOM() }) }));
+    $('#clearBtn').click(() => { const blank = emptyMatrix('#000000'); buildMatrix({ matrix: blank }); $.ajax({ url: '/api/leds', method: 'POST', contentType: 'application/json', data: JSON.stringify({ matrix: blank }) }); });
+
+    $(function init() {
+      buildMatrix(emptyMatrix());
+      refreshFromServer();
+      updateSensors();
+      setInterval(updateSensors, 5000); // refresh every 5s
+    });
+  </script>
+</body>
+</html>
